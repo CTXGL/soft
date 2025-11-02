@@ -1,150 +1,111 @@
-# SOFT2201 A4 — Completed Answers
+# SOFT2201/COMP9201 - Assignment 4 Answer Scaffold
+## Section A - Multiple Choice Questions (Q1–Q20)
 
-> This file contains full solutions you can submit directly. Replace any placeholder student info if your scaffold expects it.
+Mark your choice clearly for each question (A–D).
 
----
-
-## Section A — Multiple Choice (Q1–Q20)
-
-1. C  
-2. B  
-3. A  
-4. B  
-5. B  
-6. A  
-7. B  
-8. A  
-9. A  
-10. A  
-11. A  
-12. B  
-13. C  
-14. A  
-15. C  
-16. A  
-17. A  
-18. D  
-19. D  
-20. A
-
----
-
-## Section B — A Program Before Refactoring
-
-### Q21. Which SOLID principle is violated? Why?
-
-**Principle:** **Open/Closed Principle (OCP)**.  
-**Why:** `DataImputer.impute` uses `if/elif` branching over string method names (`"mean" | "median" | "constant"`). Adding a new algorithm (e.g., *rolling median*) requires modifying the method and the class—i.e., we must change existing code instead of extending behavior. That violates “open for extension, closed for modification.”
+| Q | Answer     |
+|---|------------|
+| 1 | C| 
+| 2 | B            | 
+| 3 | A            | 
+| 4 | B            | 
+| 5 | B            | 
+| 6 | A            | 
+| 7 | B            | 
+| 8 | A            | 
+| 9 | A            | 
+| 10 | A           | 
+| 11 | A           | 
+| 12 | B           | 
+| 13 | C           | 
+| 14 | A          | 
+| 15 | C          | 
+| 16 | A          | 
+| 17 | A          | 
+| 18 | D          | 
+| 19 | D          | 
+| 20 | A          | 
 
 ---
 
-### Q22. Add a new method: *rolling median* (no refactor)
+## Section B - A Program Before Refactoring 
 
-**Requirement:** For each missing value, fill with the median of the **previous n observed values**; assume the first *n* items are all non-missing. Keep the existing style (do not refactor).
+### Q21. SOLID Principle Violation (4 pts)
 
-Add a small helper and one new branch:
+__Principle__: Single Responsibility Principle
+__Explanation (why/how violated)__:
+  ```text
+  The DataImputer class handles various data imputation methods such as mean, median, constant, and the implementation of each method is concentrated in the same class. This results in multiple reasons for the class to change: if we need to modify one imputation method or add a new one, we need to modify this class. This violates the Single Responsibility Principle, as a class should have only one reason for change.
+  ```
 
-```python
-# class DataImputer:
-def _rolling_median(self, values, n: int):
-    out = list(values)
-    observed = []  # previously observed (after imputation)
+---
+
+### Q22. Add new method: `rolling median` (5 pts)
+
+Answer: 
+
+__Location 1 (class & method):__
+
+__Change:__
+  ```python
+  def __init__(self, constant=0, tiebreak="average", window_size=3):
+    self.constant = constant
+    self.tiebreak = tiebreak
+    self.window_size = window_size
+  ```
+
+__Location 2 (class & method):__
+
+__Change (code/description):__
+  ```python
+  elif method == "rolling_median":
+    return self._rolling_median(values)
+
+# Add new method _rolling_median
+def _rolling_median(self, values):
+    result = []
+    window = []
+    
     for i, x in enumerate(values):
         if x is not None:
-            observed.append(x)
-            continue
-
-        # window of last n observed values
-        window = observed[-n:] if len(observed) >= n else observed
-        # problem statement guarantees first n are observed
-        sorted_w = sorted(window)
-        m = len(sorted_w) // 2
-        if len(sorted_w) % 2 == 1:
-            med = sorted_w[m]
+            window.append(x)
+            if len(window) > self.window_size:
+                window.pop(0)
+            result.append(x)
         else:
-            # honour tiebreak behaviour used elsewhere in the class
-            if self.tiebreak == "average":
-                med = (sorted_w[m-1] + sorted_w[m]) / 2
-            elif self.tiebreak == "lower":
-                med = sorted_w[m-1]
-            else:  # "upper"
-                med = sorted_w[m]
-        out[i] = med
-        observed.append(med)
-    return out
-```
+            if len(window) > 0:
+                med = self.__median(window)
+                result.append(med)
+            else:
+                result.append(0)  
+    return result
+  ```
 
-```python
-def impute(self, values, method, n=None):
-    original_data = [x for x in values if x is not None]
-
-    if method == "mean":
-        m = sum(original_data) / len(original_data)
-        return [m if x is None else x for x in values]
-
-    elif method == "median":
-        med = self._median(original_data)
-        return [med if x is None else x for x in values]
-
-    elif method == "constant":
-        c = float(self.constant)
-        return [c if x is None else x for x in values]
-
-    elif method == "rolling_median":
-        if n is None or n <= 0:
-            raise ValueError("rolling_median requires positive n")
-        return self._rolling_median(values, n)
-
-    else:
-        raise ValueError(f"Unknown method: {method}")
-```
-
-> Notes: stays minimal, respects the class’s tie-break policy, and assumes the first *n* entries are observed as stated in the question.
 
 ---
 
-### Q23. Replace `if/elif` with a design pattern
+### Q23. Replace `if/elif` with a Design Pattern (6 pts)
 
-**Pattern:** **Strategy Pattern** (optionally with a simple registry).
 
-- Define an interface `ImputationStrategy` with `apply(values, **kwargs) -> list`.
-- Implement concrete strategies: `MeanImputer`, `MedianImputer`, `ConstantImputer`, `RollingMedianImputer`.
-- `DataImputer` acts as the **Context**; it selects an algorithm from a registry (dict) or via dependency injection and delegates to `strategy.apply(...)`.
-- Adding a new method then requires **only adding a new strategy class and registering it**, not editing `DataImputer`, satisfying OCP.
+Answer:
 
-Sketch:
+__Pattern:__ Strategy 
 
-```python
-from abc import ABC, abstractmethod
+__Outline of code changes:__
+  1. **Remove** the `if/elif` dispatch in `impute`.
+  2. Create an abstract base class ImputationStrategy with an impute method
+  3. Implement specific strategies for each algorithm: MeanImputer, MedianImputer, ConstantImputer, RollingMedianImputer
+  4. Modify DataImputer to accept a strategy object instead of method string
+  5. Update impute method to delegate to the strategy object
 
-class ImputationStrategy(ABC):
-    @abstractmethod
-    def apply(self, values): ...
-
-class MeanImputer(ImputationStrategy):
-    def apply(self, values):
-        ok = [v for v in values if v is not None]
-        mean = sum(ok) / len(ok)
-        return [mean if v is None else v for v in values]
-```
-
-```python
-class DataImputer:
-    def __init__(self, strategies):
-        self.strategies = strategies  # e.g., {"mean": MeanImputer(), ...}
-
-    def impute(self, values, method, **kwargs):
-        try:
-            return self.strategies[method].apply(values, **kwargs)
-        except KeyError:
-            raise ValueError(f"Unknown method: {method}")
-```
 
 ---
 
-## Section C — A Program After Refactoring
+## Section C - A Program After Refactoring (Q24–Q26)
 
-### Q24. Build a single `Move` that moves robot one step diagonally (ending facing original direction)
+### Q24. Create a single `Move` (4 pts)
+
+Answer:
 
 ```python
 def move_diagonally(robot) -> Move:
@@ -154,28 +115,33 @@ def move_diagonally(robot) -> Move:
         MoveForward(robot),
         TurnRight(robot),
     )
+    ...
 ```
 
-This moves to the forward-left cell and restores the original orientation.
+---
+
+### Q25. Identify the design pattern & participant roles (6 pts)
+Answer:
+
+__Design pattern:__ Command
+
+__Participants:__ 
+
+Move         : Abstract Command interface
+Robot        : Receiver
+MoveForward  : Concrete Command
+TurnLeft     : Concrete Command
+TurnRight    : Concrete Command
+GroupOfMoves : Composite Command
 
 ---
 
-### Q25. Identify the pattern and participants
+### Q26. Add `undo` (5 pts)
 
-**Pattern:** **Command**, with **Composite (Macro Command)** to group moves.
-
-- `Move` – Command interface.  
-- `Robot` – Receiver (executes actual actions).  
-- `MoveForward`, `TurnLeft`, `TurnRight` – ConcreteCommand.  
-- `GroupOfMoves` – Composite command that sequences sub-commands.
-
----
-
-### Q26. Add `undo` support
-
-Add `undo()` to the command interface; each command implements its inverse. Composite undoes in **reverse order**:
+Answer:
 
 ```python
+
 class Move(ABC):
     @abstractmethod
     def execute(self): ...
@@ -204,141 +170,130 @@ class GroupOfMoves(Move):
     def undo(self):
         for m in reversed(self.moves):
             m.undo()
+  ...
+
 ```
 
 ---
 
-## Section D — Testing (Composite)
+## Section D - Testing (Composite)
 
-The question’s line numbers refer to the given program. Provide tests that achieve both statement and branch coverage for reachable branches.
+### Q27. Statement coverage: line numbers of covered statements (6 pts)
 
-### Q27. Lines covered by the given test
+Answer:
 
-Given:
-
-```python
-container = Container("greeting", [Text("Hello")])
-assert container.render() == "<greeting>Hello,</greeting>"
 ```
-
-This covers:
-- **Text**: constructor and `render()` when `self.text` is truthy.  
-- **Container**: constructor branch where `name is not None` and `render()` path with children, including the loop and `if inner_text` being true.
-
-### Q28. Branch coverage table (reachable branches)
-
-| Line | Condition               | True | False |
-|----:|--------------------------|:----:|:-----:|
-|  11 | `if self.text`           |  Yes   |   NO   |
-|  18 | `if name is not None`    |  Yes   |   NO   |
-|  24 | `if not self.children`   |  Yes   |   NO   |
-|  30 | `if inner_text`          |  Yes   |   NO   |
-
-(The table reflects what the single given test hits; we’ll add tests below to cover the opposite sides.)
-
-### Q29. Additional tests to maximize coverage
-
-Add tests to hit the other sides of each reachable conditional:
-
-```python
-# 0) baseline (already given)
-container = Container("greeting", [Text("Hello")])
-assert container.render() == "<greeting>Hello,</greeting>"
-
-# 1) Text.render false branch (text is None)
-assert Text(None).render() == ""
-
-# 2) Container with no children -> line 24 True
-empty = Container("empty")
-assert empty.render() == "<empty></empty>"
-
-# 3) Container name=None -> line 18 False; default to "container"
-auto_named = Container(None, [])
-assert auto_named.render() == "<container></container>"
-
-# 4) inner_text False (child renders to empty string)
-with_empty_child = Container("wrap", [Text(None)])
-assert with_empty_child.render() == "<wrap></wrap>"
-
-# 5) mixed children: one empty, one non-empty (comma logic stable)
-mix = Container("greeting2", [Text(None), Text("Hi")])
-assert mix.render() == "<greeting2>Hi,</greeting2>"
+Lines covered: 3, 4, 
+Text：7, 8, 9, 10, 11, 12
+Container：17, 18, 19, 22, 23, 24, 26, 27, 28, 29, 30, 31, 32
 ```
-
-These exercises cover the true/false sides of the four main reachable branches.
 
 ---
 
-## Section E — Class Diagram (Facade)
+### Q28. Branch coverage (10 pts)
 
-### Q30. Participants & roles
+Answer:
 
-- **APIGateway** — **Facade** that exposes a unified `place_order` to clients.  
-- **PaymentService** — subsystem for charging/settlement.  
-- **CurrencyService** — subsystem for FX rates and conversion.  
-- **InventoryService** — subsystem for item totals and inventory currency context.
+| Line | Condition                              | True Taken? | False Taken? | 
+|------|----------------------------------------|-------------|--------------| 
+| 7    | `if self.text`                         | Yes         |      No      | 
+|11      |if self.text                            | Yes         | No             | 
+|18      |if name is not None                                        | Yes            | No             | 
+|24      |if not self.children                                        | NO            | Yes             | 
+|30      |if inner_text                                        | Yes            | No             | 
+|      |                                        |             |              | 
+|      |                                        |             |              | 
 
-### Q31. `place_order` with currency conversion
+---
+
+### Q29. Improve tests to maximize coverage (9 pts)
+
+Answer:
 
 ```python
+# Given the existing tests in the test suite
+container = Container("greeting", [Text("Hello")])
+assert container.render() == "<greeting>Hello,</greeting>"
+
+# Test empty text
+empty_text = Text()
+assert empty_text.render() == ""
+
+# Test container with no name  
+no_name_container = Container(None)
+assert no_name_container.render() == "<container></container>"
+
+# Test empty container
+empty_container = Container("div")
+assert empty_container.render() == "<div></div>"
+
+# Test nested containers
+nested = Container("div", [Container("span", [Text("nested")])])
+assert nested.render() == "<div><span>nested,</span></div>"
+
+
+```
+
+---
+
+## Section E - Class Diagram (Facade)
+
+### Q30. (6 pts)
+
+Participants:
+APIGateway        : Facade - provides simplified interface to complex subsystems
+PaymentService    : Subsystem - handles payment processing
+CurrencyService   : Subsystem - handles currency conversion
+InventoryService  : Subsystem - manages inventory and currency info
+
+---
+
+### Q31. `place_order` handling currency conversion when placing an order (6 pts)
+
+Answer:  
+# Write code or describe the Facade coordinating the other subsystems.
 class APIGateway:
     def __init__(self, payment: PaymentService, currency: CurrencyService, inv: InventoryService):
         self.payment, self.currency, self.inv = payment, currency, inv
 
     def place_order(self, order_id: str, user_currency: str):
-        total = self.inv.order_total(order_id)
-        inv_ccy = self.inv.inventory_currency()
-
+        total, inv_ccy = self.inv.order_total(order_id), self.inv.inventory_currency()
         pay_amount = (total if inv_ccy == user_currency
                       else self.currency.convert(amount=total,
-                                                 from_ccy=inv_ccy,
-                                                 to_ccy=user_currency))
-        return self.payment.charge(order_id=order_id,
-                                   amount=pay_amount,
-                                   currency=user_currency)
-```
+                                                from_ccy=inv_ccy,
+                                                to_ccy=user_currency))
+        receipt = self.payment.charge(order_id=order_id,
+                                      amount=pay_amount,
+                                      currency=user_currency)
+        return receipt
 
-### Q32. Add `DiscountService` without breaking the Facade
-
-Introduce **DiscountService** with `calc_discount(order_id, amount, currency) -> discount_amount` and update only **APIGateway** to orchestrate it. Subsystems remain unchanged.
-
-```python
-class APIGateway:
-    def __init__(self, payment, currency, inv, discount):
-        self.payment, self.currency, self.inv, self.discount = payment, currency, inv, discount
-
-    def place_order(self, order_id: str, user_currency: str):
-        total = self.inv.order_total(order_id)
-        inv_ccy = self.inv.inventory_currency()
-
-        # compute discount in inventory currency for determinism
-        disc_inv = self.discount.calc_discount(order_id, total, inv_ccy)
-        net_inv = max(0, total - disc_inv)
-
-        # convert once for payment
-        amount_user = (net_inv if inv_ccy == user_currency
-                       else self.currency.convert(net_inv, inv_ccy, user_currency))
-        return self.payment.charge(order_id, amount_user, user_currency)
-```
 
 ---
 
-## Section F — Sequence Diagram (Chain of Responsibility)
+### Q32. Adding `DiscountService` (3 pts)
 
-### Q33. Successful path messages
+Answer:
+__New class(es):__ 
+DiscountService
 
-1. **Client → AuthMiddleware**: authenticate token/session (ok).  
-2. **AuthMiddleware → Validator**: validate request params/body (ok).  
-3. **Validator → UserController**: execute business logic.  
-4. **UserController → Client**: return success response.
+__Existing class(es) to modify (if any)__ 
+APIGateway
 
-### Q34. Insert `RateLimiter` into the chain
+__Brief explanation:__
+Add DiscountService as a dependency to APIGateway and modify place_order to calculate discounts before payment processing.
+---
 
-Rewire the chain assembly to:  
-`AuthMiddleware → RateLimiter → Validator → UserController`.
+## Section F - Sequence Diagram (Chain of Responsibility)
 
-No existing handlers need code changes; only the **wiring** (the “next” pointers) changes, which is the key extensibility benefit of Chain of Responsibility.
+### Q33. (4 pts)
+
+Client sends request to AuthMiddleware. If authentication succeeds, AuthMiddleware passes request to Validator. If validation succeeds, Validator passes request to UserController. UserController processes request and returns response through the chain back to Client.
 
 ---
 
-**End of Answers.**
+### Q34. (6 pts)
+
+No, adding RateLimiter would not require changing existing handlers or client code. The Chain of Responsibility pattern allows handlers to be added/removed dynamically. We would simply insert RateLimiter between AuthMiddleware and Validator in the chain. Each handler only needs to know about the next handler in the chain, not the specific implementation.
+
+---
+
